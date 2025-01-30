@@ -1,0 +1,27 @@
+{
+  "name": "ellinaut/elasticsearch-8-connector",
+  "description": "An abstract php connector for elasticsearch 8.x",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Philipp Marien",
+      "email": "p.marien@nxiglobal.com"
+    }
+  ],
+  "minimum-stability": "stable",
+  "autoload": {
+    "psr-4": {
+      "Ellinaut\\ElasticsearchConnector\\": "src"
+    }
+  },
+  "require": {
+    "php": ">=7.2",
+    "elasticsearch/elasticsearch": "^8.0"
+  },
+  "config": {
+    "allow-plugins": {
+      "php-http/discovery": true
+    }
+  }
+}
