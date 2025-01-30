@@ -2,8 +2,7 @@
 
 namespace Ellinaut\ElasticsearchConnector;
 
-use Elasticsearch\Client;
-use Elasticsearch\Common\Exceptions\Missing404Exception;
+use Elastic\Elasticsearch\Client;
 use Ellinaut\ElasticsearchConnector\Connection\ResponseHandlerInterface;
 use Ellinaut\ElasticsearchConnector\Document\DocumentMigratorInterface;
 use Ellinaut\ElasticsearchConnector\Connection\ConnectionFactoryInterface;
@@ -380,7 +379,7 @@ class ElasticsearchConnector
 
         $response = $this->getConnection()->index($request);
         if ($this->responseHandler) {
-            $this->responseHandler->handleResponse(__METHOD__, $response);
+            $this->responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 
@@ -391,16 +390,16 @@ class ElasticsearchConnector
      */
     public function retrieveDocument(string $internalIndexName, string $id): ?array
     {
-        try {
-            $document = $this->getConnection()->get([
-                'index' => $this->getExternalIndexName($internalIndexName),
-                'id' => $id,
-            ]);
-        } catch (Missing404Exception $exception) {
+        $document = $this->getConnection()->get([
+            'index' => $this->getExternalIndexName($internalIndexName),
+            'id' => $id,
+        ]);
+
+        if (!$document->asBool()) {
             return null;
         }
 
-        return $document;
+        return $document->asArray();
     }
 
     /**
@@ -457,7 +456,7 @@ class ElasticsearchConnector
         ]);
 
         if ($this->responseHandler) {
-            $this->responseHandler->handleResponse(__METHOD__, $response);
+            $this->responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 
@@ -482,7 +481,7 @@ class ElasticsearchConnector
 
         $response = $this->getConnection()->bulk($bulkRequest);
         if ($this->responseHandler) {
-            $this->responseHandler->handleResponse(__METHOD__, $response);
+            $this->responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
 
         // clear queue
@@ -499,7 +498,7 @@ class ElasticsearchConnector
     {
         return $this->getConnection()->search(
             $this->buildParametersWithIndex($parameters, $internalIndexNames)
-        );
+        )->asArray();
     }
 
     /**
@@ -511,7 +510,7 @@ class ElasticsearchConnector
     {
         return (int)$this->getConnection()->count(
             $this->buildParametersWithIndex($parameters, $internalIndexNames)
-        )['count'];
+        )->asArray()['count'];
     }
 
     /**

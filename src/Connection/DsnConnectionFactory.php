@@ -2,8 +2,8 @@
 
 namespace Ellinaut\ElasticsearchConnector\Connection;
 
-use Elasticsearch\Client;
-use Elasticsearch\ClientBuilder;
+use Elastic\Elasticsearch\Client;
+use Elastic\Elasticsearch\ClientBuilder;
 
 /**
  * @author Philipp Marien <philipp@ellinaut.dev>

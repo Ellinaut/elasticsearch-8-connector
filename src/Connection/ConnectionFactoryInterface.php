@@ -2,7 +2,7 @@
 
 namespace Ellinaut\ElasticsearchConnector\Connection;
 
-use Elasticsearch\Client;
+use Elastic\Elasticsearch\Client;
 
 /**
  * @author Philipp Marien <philipp@ellinaut.dev>

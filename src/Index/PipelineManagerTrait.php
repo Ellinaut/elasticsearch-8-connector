@@ -2,7 +2,7 @@
 
 namespace Ellinaut\ElasticsearchConnector\Index;
 
-use Elasticsearch\Client;
+use Elastic\Elasticsearch\Client;
 use Ellinaut\ElasticsearchConnector\Connection\ResponseHandlerInterface;
 
 /**
