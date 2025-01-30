@@ -39,7 +39,7 @@ trait IndexManagerTrait
         );
 
         if ($responseHandler) {
-            $responseHandler->handleResponse(__METHOD__, $response);
+            $responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 
@@ -75,7 +75,7 @@ trait IndexManagerTrait
             ]
         );
 
-        $this->moveDocuments($searchResult, $connection, $migrationIndexName, $documentMigrator, $responseHandler);
+        $this->moveDocuments($searchResult->asArray(), $connection, $migrationIndexName, $documentMigrator, $responseHandler);
 
         $context = $searchResult['_scroll_id'];
         while (true) {
@@ -88,7 +88,7 @@ trait IndexManagerTrait
                 break;
             }
 
-            $this->moveDocuments($scrollResult, $connection, $migrationIndexName, $documentMigrator, $responseHandler);
+            $this->moveDocuments($scrollResult->asArray(), $connection, $migrationIndexName, $documentMigrator, $responseHandler);
 
             $context = $scrollResult['_scroll_id'];
         }
@@ -107,7 +107,7 @@ trait IndexManagerTrait
             ]
         );
 
-        $this->moveDocuments($searchResult, $connection, $externalIndexName, null, $responseHandler);
+        $this->moveDocuments($searchResult->asArray(), $connection, $externalIndexName, null, $responseHandler);
 
         $context = $searchResult['_scroll_id'];
         while (true) {
@@ -120,7 +120,7 @@ trait IndexManagerTrait
                 break;
             }
 
-            $this->moveDocuments($scrollResult, $connection, $externalIndexName, null, $responseHandler);
+            $this->moveDocuments($scrollResult->asArray(), $connection, $externalIndexName, null, $responseHandler);
 
             $context = $scrollResult['_scroll_id'];
         }
@@ -144,7 +144,7 @@ trait IndexManagerTrait
 
         $response = $connection->indices()->delete(['index' => $externalIndexName]);
         if ($responseHandler) {
-            $responseHandler->handleResponse(__METHOD__, $response);
+            $responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 
@@ -179,7 +179,7 @@ trait IndexManagerTrait
 
         $response = $connection->bulk(['body' => $request]);
         if ($responseHandler) {
-            $responseHandler->handleResponse(__METHOD__, $response);
+            $responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 

@@ -30,7 +30,7 @@ trait PipelineManagerTrait
             'body' => $this->getPipelineDefinition()
         ]);
         if ($responseHandler) {
-            $responseHandler->handleResponse(__METHOD__, $response);
+            $responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 
@@ -46,7 +46,7 @@ trait PipelineManagerTrait
     ): void {
         $response = $connection->ingest()->deletePipeline(['id' => $externalPipelineName]);
         if ($responseHandler) {
-            $responseHandler->handleResponse(__METHOD__, $response);
+            $responseHandler->handleResponse(__METHOD__, $response->asArray());
         }
     }
 }
