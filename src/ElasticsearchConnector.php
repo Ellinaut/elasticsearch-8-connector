@@ -221,7 +221,7 @@ class ElasticsearchConnector
     public function createIndexIfNotExist(string $internalIndexName): void
     {
         $indexName = $this->getExternalIndexName($internalIndexName);
-        if ($this->getConnection()->indices()->exists(['index' => $indexName])) {
+        if ($this->getConnection()->indices()->exists(['index' => $indexName])->asBool()) {
             return;
         }
 
@@ -246,7 +246,7 @@ class ElasticsearchConnector
     public function recreateIndex(string $internalIndexName): void
     {
         $indexName = $this->getExternalIndexName($internalIndexName);
-        if ($this->getConnection()->indices()->exists(['index' => $indexName])) {
+        if ($this->getConnection()->indices()->exists(['index' => $indexName])->asBool()) {
             $this->deleteIndex($internalIndexName);
         }
 
