@@ -529,4 +529,174 @@ class ElasticsearchConnector
 
         return $parameters;
     }
+
+    /**
+     * Rebuilds the index with zero downtime using Elasticsearch aliases.
+     *
+     * On the first call, migrates an existing plain index to an alias-backed versioned index.
+     * On later calls, atomically swaps the alias between _a and _b versioned indices.
+     *
+     * @param string $internalIndexName
+     */
+    public function rebuildIndex(string $internalIndexName): void
+    {
+        $aliasName  = $this->getExternalIndexName($internalIndexName);
+        $connection = $this->getConnection();
+
+        $isAlias = $connection->indices()->existsAlias(['name' => $aliasName])->asBool();
+
+        if ($isAlias) {
+            $currentIndexName = $this->resolveAliasTarget($aliasName, $connection);
+            $nextIndexName    = $this->nextVersionedIndexName($currentIndexName, $aliasName);
+        } else {
+            // First-time migration: the external name is still a plain index.
+            $currentIndexName = $aliasName;
+            $nextIndexName    = $aliasName . '__a';
+        }
+
+        // Clean up any leftover from a previously aborted rebuild.
+        if ($connection->indices()->exists(['index' => $nextIndexName])->asBool()) {
+            $connection->indices()->delete(['index' => $nextIndexName]);
+        }
+
+        // Build the next index with the current mapping.
+        $this->getIndexManager($internalIndexName)->createIndex(
+            $nextIndexName,
+            $connection,
+            $this->responseHandler
+        );
+
+        // Copy all documents from current to next index.
+        $this->scrollAndCopyDocuments(
+            $currentIndexName,
+            $nextIndexName,
+            $connection,
+            $this->getDocumentMigrator($internalIndexName)
+        );
+
+        if ($isAlias) {
+            // Atomic swap: remove the old alias target, add a new one in a single API call.
+            $connection->indices()->updateAliases([
+                'body' => [
+                    'actions' => [
+                        ['remove' => ['index' => $currentIndexName, 'alias' => $aliasName]],
+                        ['add'    => ['index' => $nextIndexName,    'alias' => $aliasName]],
+                    ],
+                ],
+            ]);
+
+            // Remove the now-inactive versioned index.
+            $connection->indices()->delete(['index' => $currentIndexName]);
+        } else {
+            // First-time migration:
+            // Delete the real index first (brief unavailability, one-time only),
+            // then create the alias pointing to the new versioned index.
+            $connection->indices()->delete(['index' => $currentIndexName]);
+            $connection->indices()->updateAliases([
+                'body' => [
+                    'actions' => [
+                        ['add' => ['index' => $nextIndexName, 'alias' => $aliasName]],
+                    ],
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Returns the name of the single index that the given alias points to.
+     *
+     * @param string $aliasName
+     * @param Client $connection
+     * @return string
+     */
+    private function resolveAliasTarget(string $aliasName, Client $connection): string
+    {
+        $result = $connection->indices()->getAlias(['name' => $aliasName])->asArray();
+        // Response structure: { 'actual_index_name' => { 'aliases' => { 'alias_name' => {} } } }
+        reset($result);
+        return (string) key($result);
+    }
+
+    /**
+     * Returns the next versioned index name by toggling between __a and __b suffixes.
+     *
+     * @param string $currentIndexName  e.g. "vhs_courses__a"
+     * @param string $aliasName         e.g. "vhs_courses"
+     * @return string                   e.g. "vhs_courses__b"
+     */
+    private function nextVersionedIndexName(string $currentIndexName, string $aliasName): string
+    {
+        if (substr($currentIndexName, -3) === '__a') {
+            return $aliasName . '__b';
+        }
+
+        return $aliasName . '__a';
+    }
+
+    /**
+     * Copies all documents from one index to another using the Scroll API.
+     *
+     * @param string $fromIndex
+     * @param string $toIndex
+     * @param Client $connection
+     * @param DocumentMigratorInterface|null $documentMigrator
+     */
+    private function scrollAndCopyDocuments(
+        string $fromIndex,
+        string $toIndex,
+        Client $connection,
+        ?DocumentMigratorInterface $documentMigrator = null
+    ): void {
+        $searchResult = $connection->search([
+            'index'  => $fromIndex,
+            'scroll' => '1m',
+        ]);
+
+        $this->bulkIndexDocuments($searchResult->asArray(), $toIndex, $connection, $documentMigrator);
+
+        $scrollId = $searchResult['_scroll_id'];
+        while (true) {
+            $scrollResult = $connection->scroll([
+                'scroll_id' => $scrollId,
+                'scroll'    => '1m',
+            ]);
+
+            if (count($scrollResult['hits']['hits']) === 0) {
+                break;
+            }
+
+            $this->bulkIndexDocuments($scrollResult->asArray(), $toIndex, $connection, $documentMigrator);
+            $scrollId = $scrollResult['_scroll_id'];
+        }
+    }
+
+    /**
+     * Bulk-indexes a batch of hits into the target index.
+     *
+     * @param array $searchResult
+     * @param string $toIndex
+     * @param Client $connection
+     * @param DocumentMigratorInterface|null $documentMigrator
+     */
+    private function bulkIndexDocuments(
+        array $searchResult,
+        string $toIndex,
+        Client $connection,
+        ?DocumentMigratorInterface $documentMigrator = null
+    ): void {
+        if (count($searchResult['hits']['hits']) === 0) {
+            return;
+        }
+
+        $body = [];
+        foreach ($searchResult['hits']['hits'] as $hit) {
+            $body[] = ['index' => ['_index' => $toIndex, '_id' => $hit['_id']]];
+            $body[] = $documentMigrator ? $documentMigrator->migrate($hit['_source']) : $hit['_source'];
+        }
+
+        $response = $connection->bulk(['body' => $body]);
+        if ($this->responseHandler) {
+            $this->responseHandler->handleResponse(__METHOD__, $response->asArray());
+        }
+    }
 }
